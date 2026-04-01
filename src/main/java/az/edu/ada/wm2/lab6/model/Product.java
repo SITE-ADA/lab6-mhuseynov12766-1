@@ -3,8 +3,14 @@ package az.edu.ada.wm2.lab6.model;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
+@Entity
+@Table(name = "products")
 public class Product {
+    @Id
     private UUID id;
     private String productName;
     private BigDecimal price;
