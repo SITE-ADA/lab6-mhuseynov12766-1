@@ -1,5 +1,9 @@
 package az.edu.ada.wm2.lab6.service;
 
+import az.edu.ada.wm2.lab6.model.dto.ProductRequestDto;
+import az.edu.ada.wm2.lab6.model.dto.ProductResponseDto;
+import az.edu.ada.wm2.lab6.model.mapper.ProductMapper;
+import az.edu.ada.wm2.lab6.repository.CategoryRepository;
 import az.edu.ada.wm2.lab6.model.Product;
 import az.edu.ada.wm2.lab6.repository.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,38 +31,57 @@ class ProductServiceImplTest {
     @Mock
     private ProductRepository productRepository;
 
+    @Mock
+    private CategoryRepository categoryRepository;
+
+    @Mock
+    private ProductMapper productMapper;
+
     @InjectMocks
     private ProductServiceImpl productService;
 
     private UUID productId;
     private Product product;
+    private ProductResponseDto responseDto;
 
     @BeforeEach
     void setUp() {
         productId = UUID.randomUUID();
         product = new Product(productId, "Milk", BigDecimal.TEN, LocalDate.now().plusDays(5));
+        responseDto = new ProductResponseDto(productId, "Milk", BigDecimal.TEN, product.getExpirationDate(), List.of());
     }
 
     @Test
     void createProductAssignsIdAndSaves() {
-        Product newProduct = new Product();
-        newProduct.setProductName("Bread");
-        newProduct.setPrice(BigDecimal.valueOf(2));
-        newProduct.setExpirationDate(LocalDate.now().plusDays(3));
+        ProductRequestDto requestDto = new ProductRequestDto("Bread", BigDecimal.valueOf(2), LocalDate.now().plusDays(3), null);
+        Product mappedProduct = new Product();
+        mappedProduct.setProductName("Bread");
+        mappedProduct.setPrice(BigDecimal.valueOf(2));
+        mappedProduct.setExpirationDate(requestDto.getExpirationDate());
+        ProductResponseDto mappedResponse = new ProductResponseDto(
+                productId,
+                "Bread",
+                BigDecimal.valueOf(2),
+                requestDto.getExpirationDate(),
+                List.of()
+        );
 
-        when(productRepository.save(newProduct)).thenReturn(newProduct);
+        when(productMapper.toEntity(requestDto)).thenReturn(mappedProduct);
+        when(productRepository.save(mappedProduct)).thenReturn(mappedProduct);
+        when(productMapper.toResponseDto(mappedProduct)).thenReturn(mappedResponse);
 
-        Product result = productService.createProduct(newProduct);
+        ProductResponseDto result = productService.createProduct(requestDto);
 
         assertNotNull(result.getId());
-        verify(productRepository).save(newProduct);
+        verify(productRepository).save(mappedProduct);
     }
 
     @Test
     void getProductByIdReturnsEntity() {
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productMapper.toResponseDto(product)).thenReturn(responseDto);
 
-        Product result = productService.getProductById(productId);
+        ProductResponseDto result = productService.getProductById(productId);
 
         assertEquals(productId, result.getId());
     }
@@ -73,23 +96,34 @@ class ProductServiceImplTest {
     @Test
     void getAllProductsReturnsRepositoryResults() {
         when(productRepository.findAll()).thenReturn(List.of(product));
+        when(productMapper.toResponseDto(product)).thenReturn(responseDto);
 
-        List<Product> result = productService.getAllProducts();
+        List<ProductResponseDto> result = productService.getAllProducts();
 
         assertEquals(1, result.size());
     }
 
     @Test
     void updateProductSavesExistingProduct() {
-        Product updated = new Product();
-        updated.setProductName("Updated Milk");
-        updated.setPrice(BigDecimal.valueOf(12));
-        updated.setExpirationDate(LocalDate.now().plusDays(7));
+        ProductRequestDto updated = new ProductRequestDto(
+                "Updated Milk",
+                BigDecimal.valueOf(12),
+                LocalDate.now().plusDays(7),
+                null
+        );
+        ProductResponseDto updatedResponse = new ProductResponseDto(
+                productId,
+                "Updated Milk",
+                BigDecimal.valueOf(12),
+                updated.getExpirationDate(),
+                List.of()
+        );
 
-        when(productRepository.existsById(productId)).thenReturn(true);
-        when(productRepository.save(updated)).thenReturn(updated);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productRepository.save(product)).thenReturn(product);
+        when(productMapper.toResponseDto(product)).thenReturn(updatedResponse);
 
-        Product result = productService.updateProduct(productId, updated);
+        ProductResponseDto result = productService.updateProduct(productId, updated);
 
         assertEquals(productId, result.getId());
         assertEquals("Updated Milk", result.getProductName());
@@ -97,19 +131,20 @@ class ProductServiceImplTest {
 
     @Test
     void deleteProductDeletesExistingEntity() {
-        when(productRepository.existsById(productId)).thenReturn(true);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
 
         productService.deleteProduct(productId);
 
-        verify(productRepository).deleteById(productId);
+        verify(productRepository).delete(product);
     }
 
     @Test
     void getProductsExpiringBeforeDelegatesToRepository() {
         LocalDate cutoff = LocalDate.now().plusDays(10);
         when(productRepository.findByExpirationDateBefore(cutoff)).thenReturn(List.of(product));
+        when(productMapper.toResponseDto(product)).thenReturn(responseDto);
 
-        List<Product> result = productService.getProductsExpiringBefore(cutoff);
+        List<ProductResponseDto> result = productService.getProductsExpiringBefore(cutoff);
 
         assertEquals(1, result.size());
     }
@@ -119,8 +154,9 @@ class ProductServiceImplTest {
         BigDecimal min = BigDecimal.ZERO;
         BigDecimal max = BigDecimal.TEN;
         when(productRepository.findByPriceBetween(min, max)).thenReturn(List.of(product));
+        when(productMapper.toResponseDto(product)).thenReturn(responseDto);
 
-        List<Product> result = productService.getProductsByPriceRange(min, max);
+        List<ProductResponseDto> result = productService.getProductsByPriceRange(min, max);
 
         assertEquals(1, result.size());
     }
